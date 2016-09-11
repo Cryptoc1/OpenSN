@@ -1,0 +1,36 @@
+{
+  "name": "opensn",
+  "version": "1.0.0",
+  "description": "An opensource social network designed for custom clients.",
+  "main": "server.js",
+  "scripts": {
+    "test": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cryptoc1/opensn.git"
+  },
+  "keywords": [
+    "opensn",
+    "social-network",
+    "social",
+    "network"
+  ],
+  "author": "Samuel Steele <steelesam72@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cryptoc1/opensn/issues"
+  },
+  "homepage": "https://github.com/cryptoc1/opensn#readme",
+  "dependencies": {
+    "body-parser": "^1.15.0",
+    "cookie-parser": "^1.4.1",
+    "dotenv": "^2.0.0",
+    "express": "^4.13.4",
+    "express-handlebars": "^3.0.0",
+    "mongodb": "^2.1.11",
+    "nodemon": "^1.9.1",
+    "password-hash": "^1.2.2"
+  }
+}
