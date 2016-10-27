@@ -1,11 +1,12 @@
-var express = require('express'),
-  bodyParser = require('body-parser'),
-  handlebars = require('express-handlebars'),
-  cookies = require('cookie-parser'),
-  crypto = require('crypto'),
-  Error = require('./lib/errors.js')
+var express = require('express')
+var bodyParser = require('body-parser')
+var handlebars = require('express-handlebars')
+var cookies = require('cookie-parser')
+var crypto = require('crypto')
+var shrink = require('shrink-ray')
 
-db = require('./lib/database.js')
+var db = require('./lib/database.js')
+var Error = require('./lib/errors.js')
 
 var app = express()
 
@@ -13,7 +14,8 @@ var app = express()
 require('dotenv').config()
 var client = process.env.CLIENT_ID
 
-app.use(express.static('public'))
+app.use(shrink())
+app.use(express.static('views/public'))
 
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({
@@ -28,7 +30,7 @@ app.set('view engine', '.hbs')
 
 app.use(cookies(crypto.randomBytes(32).toString('hex')))
 
-app.use(function (req, res, next) {
+app.use(function(req, res, next) {
   req.fullUrl = req.protocol + '://' + req.get('host') + req.originalUrl
   next()
 })
@@ -42,15 +44,16 @@ app.use(function (req, res, next) {
 
 /* core/central system functions */
 
-app.get('/', function (req, res) {
+app.get('/', function(req, res) {
   if (req.cookies.session && req.cookies.user) {
-    db.verifyAccessToken(req.cookies.session, client, req.cookies.user, function (err, verified, token) {
+    db.verifyAccessToken(req.cookies.session, client, req.cookies.user, function(err, verified, token) {
       if (err) {
         console.log(err)
       } else if (verified) {
         // NOTE: The user is verified, so display their feed
         res.render('feed', {})
       } else {
+        // @TODO: clear out cookies
         res.redirect('/login')
       }
     })
@@ -59,13 +62,13 @@ app.get('/', function (req, res) {
   }
 })
 
-app.get('/signup', function (req, res) {
+app.get('/signup', function(req, res) {
   res.render('signup')
 })
 
-app.post('/signup', function (req, res) {
+app.post('/signup', function(req, res) {
   if (req.body.username && req.body.password && req.body.email && req.body.fullname) {
-    db.checkIfUserExists(req.body.username, function (err, exists) {
+    db.checkIfUserExists(req.body.username, function(err, exists) {
       if (err) {
         res.status(err.code).json(err)
       } else {
@@ -78,7 +81,7 @@ app.post('/signup', function (req, res) {
             fullname: req.body.fullname,
             email: req.body.email
           }
-          db.createUser(user, function (err, success) {
+          db.createUser(user, function(err, success) {
             if (err) {
               res.status(err.code).json(err)
             } else if (success) {
@@ -97,19 +100,19 @@ app.post('/signup', function (req, res) {
   }
 })
 
-app.get('/login', function (req, res) {
+app.get('/login', function(req, res) {
   res.set('Referrer', req.fullUrl)
   res.render('login')
 })
 
-app.post('/login', function (req, res) {
+app.post('/login', function(req, res) {
   if (req.get('Referrer') == req.fullUrl) {
     if (req.body.username && req.body.password) {
-      db.verifyUser(req.body.username, req.body.password, function (err, verified, userID) {
+      db.verifyUser(req.body.username, req.body.password, function(err, verified, userID) {
         if (err) {
           res.status(err.code).json(err)
         } else if (verified) {
-          db.createAccessToken(client, userID, function (err, succes, token) {
+          db.createAccessToken(client, userID, function(err, succes, token) {
             console.log(token)
             res.cookie('session', token.access_token)
             res.cookie('user', token.user_id)
@@ -129,13 +132,13 @@ app.post('/login', function (req, res) {
   }
 })
 
-app.get('/clients', function (req, res) {
+app.get('/clients', function(req, res) {
   if (req.cookies.session && req.cookies.user) {
-    db.verifyAccessToken(req.cookies.session, client, req.cookies.user, function (err, verified, token) {
+    db.verifyAccessToken(req.cookies.session, client, req.cookies.user, function(err, verified, token) {
       if (err) {
         res.redirect('/login')
       } else if (verified) {
-        db.getUserClients(token.user_id, function (err, clients) {
+        db.getUserClients(token.user_id, function(err, clients) {
           if (err) {
             res.status(err.code).render('clients', {
               error: err
@@ -155,9 +158,9 @@ app.get('/clients', function (req, res) {
   }
 })
 
-app.get('/clients/register', function (req, res) {
+app.get('/clients/register', function(req, res) {
   if (req.cookies.session && req.cookies.user) {
-    db.verifyAccessToken(req.cookies.session, client, req.cookies.user, function (err, verified, token) {
+    db.verifyAccessToken(req.cookies.session, client, req.cookies.user, function(err, verified, token) {
       if (err) {
         res.status(err.code).render('register', {
           error: err
@@ -173,10 +176,10 @@ app.get('/clients/register', function (req, res) {
   }
 })
 
-app.post('/clients/register', function (req, res) {
+app.post('/clients/register', function(req, res) {
   if (req.get('Referrer') == req.fullUrl) {
     if (req.body.client_name && req.body.owner_username && req.body.owner_email) {
-      db.verifyAccessToken(req.cookies.session, client, req.cookies.user, function (err, verified, token) {
+      db.verifyAccessToken(req.cookies.session, client, req.cookies.user, function(err, verified, token) {
         if (err) {
           res.status(err.code).render('register', {
             error: err
@@ -190,7 +193,7 @@ app.post('/clients/register', function (req, res) {
             },
             name: req.body.client_name
           }
-          db.createClient(client, function (err, success) {
+          db.createClient(client, function(err, success) {
             if (err) {
               res.status(err.code).render('register', {
                 error: err
@@ -221,10 +224,11 @@ app.post('/clients/register', function (req, res) {
 
 /* Authorization endpoints */
 
-app.get('/api/v1/auth', function (req, res) {
+// User needs to authorize client (like twitter)
+app.get('/api/v1/auth', function(req, res) {
   if (req.query.client_id) {
     res.set('Referrer', req.fullUrl)
-    db.verifyClientId(req.query.client_id, function (err, verified) {
+    db.verifyClientId(req.query.client_id, function(err, verified) {
       if (err) {
         res.status(err.code).json(err)
       } else if (verified) {
@@ -240,21 +244,23 @@ app.get('/api/v1/auth', function (req, res) {
   }
 })
 
-app.post('/api/v1/auth', function (req, res) {
+// The user logged in and authorized the client
+app.post('/api/v1/auth', function(req, res) {
   if (req.body.username && req.body.password && (req.query.client_id || req.body.client_id) && (req.get('Referrer') == (req.fullUrl))) {
-    db.verifyClientId(req.query.client_id || req.body.client_id, function (err, verified) {
+    db.verifyClientId(req.query.client_id || req.body.client_id, function(err, verified) {
       if (err) {
         res.status(err.code).json(err)
       } else if (verified) {
-        db.verifyUser(req.body.username, req.body.password, function (err, verified, userID) {
+        db.verifyUser(req.body.username, req.body.password, function(err, verified, userID) {
           if (err) {
             res.status(err.code).json(err)
           } else if (verified) {
             // @TODO: create access_token, enter it in database, redirect to client (with access_token)
-            db.createAccessToken((req.query.client_id || req.body.client_id), userID, function (err, success, token) {
+            db.createAccessToken((req.query.client_id || req.body.client_id), userID, function(err, success, token) {
               if (err) {
                 res.status(err.code).json(err)
               } else if (success) {
+                // @TODO: redirect to client callback url
                 res.json(token)
               } else {
                 res.status(500).json(Error(500))
@@ -279,13 +285,15 @@ app.post('/api/v1/auth', function (req, res) {
 
 /* Status functions */
 
-app.post('/api/v1/status/create', function (req, res) {
+// @TODO: Make sure these work as they should!
+
+app.post('/api/v1/status/create', function(req, res) {
   if (req.body.status && req.body.user_id && req.body.access_token && req.body.client_id) {
-    db.verifyAccessToken(req.body.access_token, req.body.client_id, req.body.user_id, function (err, verified) {
+    db.verifyAccessToken(req.body.access_token, req.body.client_id, req.body.user_id, function(err, verified) {
       if (err) {
         res.status(err.code).json(err)
       } else if (verified) {
-        db.createStatus(req.body.user_id, req.body.status, function (err, statusID) {
+        db.createStatus(req.body.user_id, req.body.status, function(err, statusID) {
           if (err) {
             res.status(522).json(Error(522))
           } else {
@@ -307,9 +315,9 @@ app.post('/api/v1/status/create', function (req, res) {
   }
 })
 
-app.get('/api/v1/status/:status_id', function (req, res) {
+app.get('/api/v1/status/:status_id', function(req, res) {
   if (req.params.status_id) {
-    db.getStatus(req.params.status_id, function (err, status) {
+    db.getStatus(req.params.status_id, function(err, status) {
       if (err) {
         res.status(err.code).json(err)
       } else {
@@ -321,13 +329,13 @@ app.get('/api/v1/status/:status_id', function (req, res) {
   }
 })
 
-app.post('/api/v1/status/:status_id/link', function (req, res) {
+app.post('/api/v1/status/:status_id/link', function(req, res) {
   if (req.params.status_id && req.body.user_id && req.body.access_token && req.body.client_id) {
-    db.verifyAccessToken(req.body.access_token, req.body.client_id, function (err, verified) {
+    db.verifyAccessToken(req.body.access_token, req.body.client_id, function(err, verified) {
       if (err) {
         res.status(err.code).json(err)
       } else if (verified) {
-        db.createStatusLink(req.params.status_id, req.body.user_id, function (err, success) {
+        db.createStatusLink(req.params.status_id, req.body.user_id, function(err, success) {
           if (err) {
             res.status(522).json(Error(522))
           } else {
@@ -346,9 +354,9 @@ app.post('/api/v1/status/:status_id/link', function (req, res) {
   }
 })
 
-app.delete('/api/v1/status/:status_id/delete', function (req, res) {
+app.delete('/api/v1/status/:status_id/delete', function(req, res) {
   if (req.params.status_id && req.body.access_token && req.body.client_id) {
-    db.deleteStatus(req.params.status_id, function (err, success) {
+    db.deleteStatus(req.params.status_id, function(err, success) {
       if (err) {
         res.status(err.code).json(err)
       } else {
@@ -363,13 +371,13 @@ app.delete('/api/v1/status/:status_id/delete', function (req, res) {
   }
 })
 
-app.put('/api/v1/status/:status_id/edit', function (req, res) {
+app.put('/api/v1/status/:status_id/edit', function(req, res) {
   if (req.params.status_id && req.body.status && req.body.access_token && req.body.client_id) {
-    db.verifyAccessToken(req.body.access_token, req.body.client_id, function (err, verified) {
+    db.verifyAccessToken(req.body.access_token, req.body.client_id, function(err, verified) {
       if (err) {
         res.status(err.code).json(err.code)
       } else if (verifed) {
-        db.editStatus(req.params.status_id, req.body.status, function (err, success) {
+        db.editStatus(req.params.status_id, req.body.status, function(err, success) {
           if (err) {
             res.status(522).json(Error(522))
           } else {
@@ -390,20 +398,20 @@ app.put('/api/v1/status/:status_id/edit', function (req, res) {
 
 /* User functions */
 
-app.post('/api/v1/user/create', function (req, res) {})
+app.post('/api/v1/user/create', function(req, res) {})
 
-app.get('/api/v1/user/:user_id', function (req, res) {})
+app.get('/api/v1/user/:user_id', function(req, res) {})
 
-app.post('/api/v1/user/:user_id/link', function (req, res) {})
+app.post('/api/v1/user/:user_id/link', function(req, res) {})
 
-app.delete('/api/v1/user/:user_id/delete', function (req, res) {})
+app.delete('/api/v1/user/:user_id/delete', function(req, res) {})
 
-app.put('/api/v1/user/:user_id/edit', function (req, res) {})
+app.put('/api/v1/user/:user_id/edit', function(req, res) {})
 
-app.all('*', function (req, res) {
+app.all('*', function(req, res) {
   res.status(403).json(Error(403))
 })
 
-var server = app.listen(process.env.PORT || 5000, function () {
+var server = app.listen(process.env.PORT || 5000, function() {
   console.log('Service running at http://0.0.0.0:%d', server.address().port)
 })
